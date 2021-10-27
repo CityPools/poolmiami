@@ -1,0 +1,45 @@
+[project]
+name = "citypools-miami"
+requirements = []
+
+[contracts.sip-09-trait]
+path = "contracts/sip-09-trait.clar"
+depends_on = []
+
+[contracts.citypools-miami]
+path = "contracts/citypools-miami.clar"
+depends_on = []
+
+[contracts.poolmiami-ticket]
+path = "contracts/poolmiami-ticket.clar"
+depends_on = ["sip-09-trait"]
+
+[contracts.citycoin-vrf]
+path = "contracts/citycoin-vrf.clar"
+depends_on = []
+
+[contracts.citycoin-core-trait]
+path = "contracts/citycoin-core-trait.clar"
+depends_on = []
+
+[contracts.citycoin-token-trait]
+path = "contracts/citycoin-token-trait.clar"
+depends_on = []
+
+[contracts.citycoin-auth]
+path = "contracts/citycoin-auth.clar"
+depends_on = ["citycoin-core-trait", "citycoin-token-trait"]
+
+[contracts.citycoin-token]
+path = "contracts/citycoin-token.clar"
+depends_on = ["sip-10-trait", "citycoin-auth", "citycoin-token-trait"]
+
+[contracts.citycoin-core-v1]
+path = "contracts/citycoin-core-v1.clar"
+depends_on = ["citycoin-auth", "citycoin-token", "citycoin-vrf", "citycoin-core-trait"]
+
+# contracts listed below are used only in testing
+
+[contracts.sip-10-trait]
+path = "contracts/sip-10-trait.clar"
+depends_on = []
