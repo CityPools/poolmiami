@@ -1,5 +1,5 @@
-import * as React from 'react';
-import { Text, TextProps } from '@chakra-ui/layout';
+import * as React from 'react'
+import { Text, TextProps } from '@chakra-ui/layout'
 
 const Copyright = (props: TextProps) => (
   <Text fontSize="sm" {...props}>
@@ -7,4 +7,4 @@ const Copyright = (props: TextProps) => (
   </Text>
 )
 
-export default Copyright;
+export default Copyright

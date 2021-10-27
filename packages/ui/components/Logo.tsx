@@ -1,5 +1,10 @@
-import * as React from 'react';
-import { chakra, HTMLChakraProps, useColorModeValue, useToken } from '@chakra-ui/react';
+import * as React from 'react'
+import {
+  chakra,
+  HTMLChakraProps,
+  useColorModeValue,
+  useToken,
+} from '@chakra-ui/react'
 
 const Logo = (props: HTMLChakraProps<'svg'>) => {
   const [white, black] = useToken('colors', ['white', 'gray.800'])
@@ -25,4 +30,4 @@ const Logo = (props: HTMLChakraProps<'svg'>) => {
   )
 }
 
-export default Logo;
+export default Logo
