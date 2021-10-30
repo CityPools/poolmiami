@@ -8,7 +8,7 @@ depends_on = []
 
 [contracts.citypools-miami]
 path = "contracts/citypools-miami.clar"
-depends_on = []
+depends_on = ["poolmiami-ticket"]
 
 [contracts.poolmiami-ticket]
 path = "contracts/poolmiami-ticket.clar"
