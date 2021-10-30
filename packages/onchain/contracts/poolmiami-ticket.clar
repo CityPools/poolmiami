@@ -1,10 +1,13 @@
 (impl-trait .sip-09-trait.sip-09-trait)
 
 ;; Ticket NFT
-(define-non-fungible-token poolmiami-ticket uint)
+(define-non-fungible-token PoolMiami-Ticket uint)
 
 ;; Storage
 (define-map token-count principal uint)
+(define-map RecentMints { owner: principal }
+    { lastMinted: uint }
+)
 
 ;; constants
 (define-constant IPFS_ROOT "ipfs://xyz/")
@@ -15,38 +18,37 @@
 
 ;; variables
 (define-data-var last-id uint u0)
-(define-data-var last-block uint block-height)
-(define-data-var last-vrf (buff 64) 0x00)
 
 (define-data-var contract-owner principal tx-sender)
-(define-data-var token-uri (string-ascii 256) "")
 (define-data-var creator-address principal tx-sender)
 (define-data-var rotation uint u1)
 
 ;; public functions
-(define-public (mint)
+(define-public (mint-ticket (minter principal) (amount uint))
   (let 
     (
       (next-id (+ u1 (var-get last-id)))
-      (current-balance (get-balance tx-sender))
+      (current-balance (get-balance minter))
     )
-    (try! (nft-mint? poolmiami-ticket next-id tx-sender))
+    (try! (nft-mint? PoolMiami-Ticket next-id minter))
     (var-set last-id next-id)
-    (map-set token-count tx-sender (+ current-balance u1))
-    (print (var-get last-id))
-    (ok true)
+    (map-set token-count minter (+ current-balance u1))
+    (map-set RecentMints { owner: minter } { lastMinted: next-id })
+    (print {msg: "ticket-minted", id: next-id})
+    (ok next-id)
   )
 )
 
-(define-public (burn (token-id uint))
+(define-public (burn (token-id uint) (minter principal))
   (let
     (
-      (current-balance (get-balance tx-sender))
+      (current-balance (get-balance minter))
     )
     (if (is-sender-owner token-id)
       (begin
-        (try! (nft-burn? poolmiami-ticket token-id tx-sender))
-        (map-set token-count tx-sender (- current-balance u1))
+        (try! (nft-burn? PoolMiami-Ticket token-id minter))
+        (map-set token-count minter (- current-balance u1))
+        (print {msg: "ticket-burned", id: token-id})
         (ok true)
       )
       (err ERR_NOT_AUTHORIZED)
@@ -56,7 +58,7 @@
 
 (define-public (transfer (token-id uint) (from principal) (to principal))
   (if (is-eq tx-sender to)
-    (match (nft-transfer? poolmiami-ticket token-id from to)
+    (match (nft-transfer? PoolMiami-Ticket token-id from to)
         success (ok success)
         error (err error)
     )
@@ -68,15 +70,12 @@
   (ok (var-get last-id))
 )
 
-(define-read-only (get-contract-owner)
-  (ok (var-get contract-owner))
+(define-read-only (get-last-minted-by-owner (owner principal))
+  (default-to u0 (get lastMinted (map-get? RecentMints { owner: owner })))
 )
 
-(define-public (set-token-uri (value (string-ascii 256)))
-  (if (is-eq tx-sender (var-get contract-owner))
-    (ok (var-set token-uri value))
-    (err ERR_NOT_AUTHORIZED)
-  )
+(define-read-only (get-contract-owner)
+  (ok (var-get contract-owner))
 )
 
 (define-read-only (get-token-uri (token-id uint))
@@ -84,7 +83,7 @@
 )
 
 (define-read-only (get-owner (token-id uint))
-  (ok (nft-get-owner? poolmiami-ticket token-id))
+  (ok (nft-get-owner? PoolMiami-Ticket token-id))
 )
 
 (define-read-only (get-balance (account principal))
@@ -100,7 +99,7 @@
 (define-private (is-sender-owner (token-id uint))
   (let 
     (
-      (owner (unwrap! (nft-get-owner? poolmiami-ticket token-id) false))
+      (owner (unwrap! (nft-get-owner? PoolMiami-Ticket token-id) false))
     )
     (or (is-eq tx-sender owner) (is-eq contract-caller owner))
   )
@@ -144,6 +143,3 @@
       (get data (fold concat-uint FOLDS_TWO { dec: num, data: ""}))
   )
 )
-
-;; initialize
-(var-set token-uri "ipfs://")

@@ -1,25 +1,18 @@
 ;;      ////    ERRORS    \\\\      ;;
 
-(define-constant ERR_NOT_OWNER 401)
-(define-constant ERR_NOT_AUTHORIZED 401)
-(define-constant ERR_STACKER_NOT_FOUND 404)
-(define-constant ERR_CONTRIBUTION_TOO_LOW u200)
-(define-constant ERR_ROUND_NOT_FOUND u201)
-(define-constant ERR_CANNOT_MINE_IF_ROUND_ACTIVE u202)
-(define-constant ERR_CANNOT_MODIFY_FUNDS_OF_EXPIRED_ROUND u203)
-(define-constant ERR_MINE_TOTAL_NOT_BALANCE_TOTAL u204)
-(define-constant ERR_BLOCK_ALREADY_CHECKED u205)
-(define-constant ERR_WAIT_100_BLOCKS_BEFORE_CHECKING u206)
-(define-constant ERR_ALL_POSSIBLE_BLOCKS_CHECKED u207)
-(define-constant ERR_MUST_REDEEM_ALL_WON_BLOCKS u208)
-(define-constant ERR_ALL_PARTICIPANTS_PAID u209)
-(define-constant ERR_MINING_NOT_STARTED u210)
-(define-constant ERR_ALREADY_MINED u211)
-(define-constant ERR_MUST_CHECK_ALL_MINED_BLOCKS u212)
-(define-constant ERR_INVALID_AMOUNT u213)
-(define-constant ERR_ID_NOT_FOUND u214)
-(define-constant ERR_ID_NOT_IN_ROUND u215)
-(define-constant ERR_INSUFFICIENT_BALANCE u216)
+(define-constant ERR-NOT-OWNER u401)
+(define-constant ERR-NOT-AUTHORIZED u401)
+(define-constant ERR-STACKER-NOT-FOUND u404)
+(define-constant ERR-TOKEN-NOT-FOUND u405)
+(define-constant ERR-TICKET-NOT-FOUND u201)
+(define-constant ERR-BLOCK-ALREADY-CHECKED u205)
+(define-constant ERR-WAIT-100-BLOCKS-BEFORE-CHECKING u206)
+(define-constant ERR-ALL-POSSIBLE-BLOCKS-CHECKED u207)
+(define-constant ERR-ALL-WINNERS-PAID u209)
+(define-constant ERR-INVALID-AMOUNT u213)
+(define-constant ERR-ID-NOT-FOUND u214)
+(define-constant ERR-ID-NOT-IN-TICKET u215)
+(define-constant ERR-INSUFFICIENT-BALANCE u216)
 
 ;; filter vars
 (define-data-var stackerIdTip uint u0)
@@ -45,7 +38,8 @@
       totalMiaLocked: uint,
       lockedCycleLength: uint,
       hasBeenSelected: bool,
-      endCycle: uint
+      endCycle: uint,
+      active: bool
     }
 )
 ;; stores the last 305 stackers tickets
@@ -69,7 +63,8 @@
 ;;      ****    PRIVATE    ****     ;;
 
 (define-private (get-or-create-stacker-id (stacker principal))
-  (match (get id (map-get? PrincipalToId { stacker: stacker })) stackerId stackerId
+  (match 
+    (get id (map-get? PrincipalToId { stacker: stacker })) stackerId stackerId
     (let
       ((newId (+ u1 (var-get stackerIdTip))))
       (map-set StackersTickets { id: newId } { ticketIds: (list) })
@@ -81,32 +76,47 @@
   )
 )
 
-;;      ****    PUBLIC    ****     ;;
-
-(define-public (create-ticket (owner principal) (ticket-id uint) (amount uint))
+(define-public (create-ticket (amount uint))
   (let
     (
       (stackerId (get-or-create-stacker-id tx-sender))
-      (stacker (unwrap! (get-stacker stackerId) (err ERR_STACKER_NOT_FOUND)))
+      (stacker (unwrap! (get-stacker stackerId) (err ERR-STACKER-NOT-FOUND)))
+      (ticketId (unwrap! (get-last-token-id) (err ERR-TOKEN-NOT-FOUND)))
     )
 
-    (map-set Tickets { id: ticket-id } 
+    (map-set Tickets { id: ticketId } 
       { 
-        owner: owner,
+        owner: tx-sender,
         totalMiaLocked: amount,
         lockedCycleLength: u6,
         hasBeenSelected: false,
-        endCycle: u12
+        endCycle: u12,
+        active: false 
       }
     )
+
     ;; add Ticket into StackersTickets (ticketIds)
+    (map-set StackersTickets { id: stackerId } 
+      { ticketIds: (unwrap-panic (as-max-len? (append (default-to (list) (get-ticket-ids stackerId)) ticketId) u200)) }
+    )
+
+    (ok true)
+  )
+)
+
+;;      ****    PUBLIC    ****     ;;
+
+(define-public (claim (amount uint))
+  (begin
+    (try! (contract-call? .poolmiami-ticket mint-ticket tx-sender amount))
+    (try! (contract-call? .citycoin-core-v1 stack-tokens amount u2))
     (ok true)
   )
 )
 
 (define-public (set-contract-owner (new-owner principal))
   (begin
-    (asserts! (is-eq tx-sender (var-get contract-owner)) (err ERR_NOT_OWNER))
+    (asserts! (is-eq tx-sender (var-get contract-owner)) (err ERR-NOT-OWNER))
     (ok (var-set contract-owner new-owner))
   )
 )
@@ -117,7 +127,7 @@
 
 ;;      ****    READ-ONLY    ****     ;;
 
-(define-read-only (balance)
+(define-read-only (get-balance)
   (stx-get-balance (as-contract tx-sender))
 )
 
@@ -125,23 +135,27 @@
   (ok (var-get contract-owner))
 )
 
-(define-read-only (get-owner (index uint))
-  (ok (var-get contract-owner))
+(define-read-only (get-stacker (id uint))
+  (map-get? StackersTickets { id: id })
 )
 
-(define-read-only (get-stacker (id uint))
-    (map-get? StackersTickets { id: id })
+(define-read-only (get-last-token-id)
+  (contract-call? .poolmiami-ticket get-last-token-id)
 )
 
 (define-read-only (get-ticket (id uint))
   (map-get? Tickets { id: id })
 )
 
-(define-read-only (stx-balance)
-  (stx-get-balance (as-contract tx-sender))
+(define-read-only (get-ticket-ids (id uint))
+  (get ticketIds (map-get? StackersTickets { id: id }))
 )
 
-(define-read-only (stx-balance-of (address principal))
-  (stx-get-balance address)
+(define-read-only (principal-to-id (stacker principal))
+  (get id (map-get? PrincipalToId { stacker: stacker }))
+)
+
+(define-read-only (id-to-principal (id uint))
+  (get stacker (map-get? IdToPrincipal { id: id }))
 )
 
