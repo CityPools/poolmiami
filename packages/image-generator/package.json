@@ -1,0 +1,9 @@
+{
+  "name": "root",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "save-svg-as-png": "^1.4.17",
+    "svg64": "^1.1.0"
+  }
+}
