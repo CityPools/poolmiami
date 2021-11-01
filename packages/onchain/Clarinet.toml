@@ -6,6 +6,10 @@ requirements = []
 path = "contracts/sip-09-trait.clar"
 depends_on = []
 
+[contracts.citypools-miami-trait]
+path = "contracts/citypools-miami-trait.clar"
+depends_on = []
+
 [contracts.citypools-miami]
 path = "contracts/citypools-miami.clar"
 depends_on = ["poolmiami-ticket"]

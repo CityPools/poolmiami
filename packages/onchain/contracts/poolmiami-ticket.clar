@@ -21,7 +21,6 @@
 
 (define-data-var contract-owner principal tx-sender)
 (define-data-var creator-address principal tx-sender)
-(define-data-var rotation uint u1)
 
 ;; public functions
 (define-public (mint-ticket (minter principal) (amount uint))
@@ -33,7 +32,8 @@
     (try! (nft-mint? PoolMiami-Ticket next-id minter))
     (var-set last-id next-id)
     (map-set token-count minter (+ current-balance u1))
-    (map-set RecentMints { owner: minter } { lastMinted: next-id })
+    ;; TODO: create ability to call back into citypools-miami contract by using a trait
+    ;; (try! (contract-call? .citypools-miami create-ticket next-id amount))
     (print {msg: "ticket-minted", id: next-id})
     (ok next-id)
   )

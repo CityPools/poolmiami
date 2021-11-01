@@ -27,6 +27,7 @@
 
 (define-constant mintFee u1000000)
 (define-constant minContribution u10000000)
+(define-constant defaultCycle u6)
 
 ;;      ////    STORAGE    \\\\     ;;
 
@@ -34,18 +35,25 @@
 (define-map Tickets
     { id: uint }
     { 
-      owner: principal,
-      totalMiaLocked: uint,
-      lockedCycleLength: uint,
-      hasBeenSelected: bool,
-      endCycle: uint,
-      active: bool
+      stacker: principal,
+      amountStacked: uint,
+      hasClaimed: bool,
+      isWinner: bool,
+      endCycle: uint
     }
 )
 ;; stores the last 305 stackers tickets
 (define-map StackersTickets
     { id: uint }
     { ticketIds: (list 305 uint) }
+)
+
+;; stores the amount of MIA stacked through CityPools
+(define-map StackingStatsAtCycle
+  uint
+  {
+    amountStacked: uint
+  }
 )
 
 ;; lookup table to get principle from id
@@ -76,30 +84,50 @@
   )
 )
 
-(define-public (create-ticket (amount uint))
+(define-public (create-ticket (ticket-id uint) (amount uint))
   (let
     (
       (stackerId (get-or-create-stacker-id tx-sender))
       (stacker (unwrap! (get-stacker stackerId) (err ERR-STACKER-NOT-FOUND)))
-      (ticketId (unwrap! (get-last-token-id) (err ERR-TOKEN-NOT-FOUND)))
+      (currentCycle (default-to u0 (contract-call? .citycoin-core-v1 get-reward-cycle block-height)))
+      (currentStackedAmount 
+        (default-to u0
+          (get amountStacked 
+            (map-get? StackingStatsAtCycle currentCycle)
+          )
+        )
+      )
     )
 
-    (map-set Tickets { id: ticketId } 
+    (map-set Tickets { id: ticket-id } 
       { 
-        owner: tx-sender,
-        totalMiaLocked: amount,
-        lockedCycleLength: u6,
-        hasBeenSelected: false,
-        endCycle: u12,
-        active: false 
+        stacker: tx-sender,
+        amountStacked: amount,
+        hasClaimed: false,
+        isWinner: false,
+        endCycle: u12
       }
     )
 
-    ;; add Ticket into StackersTickets (ticketIds)
     (map-set StackersTickets { id: stackerId } 
-      { ticketIds: (unwrap-panic (as-max-len? (append (default-to (list) (get-ticket-ids stackerId)) ticketId) u200)) }
+      { ticketIds: (unwrap-panic (as-max-len? (append (default-to (list) (get-ticket-ids stackerId)) ticket-id) u200)) }
     )
 
+    (map-set StackingStatsAtCycle currentCycle
+      { amountStacked: (+ currentStackedAmount amount) }
+    )
+    
+    (ok true)
+  )
+)
+
+(define-private (is-stacking-winner-and-can-claim (stacker principal) (cycle uint) (testCanClaim bool))
+  (let
+    (
+      (stackerId (principal-to-id stacker))
+    )
+    (asserts! (is-eq tx-sender stacker) (err ERR-NOT-OWNER))
+    (print stackerId)
     (ok true)
   )
 )
@@ -109,9 +137,13 @@
 (define-public (claim (amount uint))
   (begin
     (try! (contract-call? .poolmiami-ticket mint-ticket tx-sender amount))
-    (try! (contract-call? .citycoin-core-v1 stack-tokens amount u2))
+    (try! (as-contract (contract-call? .citycoin-core-v1 stack-tokens amount defaultCycle)))
     (ok true)
   )
+)
+
+(define-public (claim-reward (cycle uint))
+  (ok true)
 )
 
 (define-public (set-contract-owner (new-owner principal))
@@ -157,5 +189,13 @@
 
 (define-read-only (id-to-principal (id uint))
   (get stacker (map-get? IdToPrincipal { id: id }))
+)
+
+(define-read-only (is-stacking-winner (stacker principal) (cycle uint))
+  (is-stacking-winner-and-can-claim stacker cycle false)
+)
+
+(define-read-only (can-claim-stacking-reward (stacker principal) (cycle uint))
+  (is-stacking-winner-and-can-claim stacker cycle true)
 )
 
