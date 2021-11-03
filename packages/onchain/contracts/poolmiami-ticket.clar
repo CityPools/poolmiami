@@ -5,9 +5,6 @@
 
 ;; Storage
 (define-map token-count principal uint)
-(define-map RecentMints { owner: principal }
-    { lastMinted: uint }
-)
 
 ;; constants
 (define-constant IPFS_ROOT "ipfs://xyz/")
@@ -68,10 +65,6 @@
 
 (define-read-only (get-last-token-id)
   (ok (var-get last-id))
-)
-
-(define-read-only (get-last-minted-by-owner (owner principal))
-  (default-to u0 (get lastMinted (map-get? RecentMints { owner: owner })))
 )
 
 (define-read-only (get-contract-owner)
