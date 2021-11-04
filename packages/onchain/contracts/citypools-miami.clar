@@ -135,8 +135,11 @@
 ;;      ****    PUBLIC    ****     ;;
 
 (define-public (claim (amount uint))
-  (begin
-    (try! (contract-call? .poolmiami-ticket mint-ticket tx-sender amount))
+  (let
+    (
+      (tokenId (try! (contract-call? .poolmiami-ticket mint-ticket tx-sender amount)))
+    )
+    (try! (create-ticket tokenId amount))
     (try! (as-contract (contract-call? .citycoin-core-v1 stack-tokens amount defaultCycle)))
     (ok true)
   )
@@ -169,10 +172,6 @@
 
 (define-read-only (get-stacker (id uint))
   (map-get? StackersTickets { id: id })
-)
-
-(define-read-only (get-last-token-id)
-  (contract-call? .poolmiami-ticket get-last-token-id)
 )
 
 (define-read-only (get-ticket (id uint))
