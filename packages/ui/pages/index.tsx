@@ -4,9 +4,9 @@ import Image from 'next/image'
 import '../styles/Home.module.css'
 
 import FeatureList from '../components/features/FeatureList'
-import SignUp from '../components/SignUp'
 import Stat from '../components/stats/Stat'
 import Footer from '../components/Footer'
+import Auth from '../components/Auth'
 
 import {
   Badge,
@@ -20,9 +20,14 @@ import {
   Text,
   useColorModeValue as mode,
 } from '@chakra-ui/react'
+
 import { HiArrowRight } from 'react-icons/hi'
 
+import { useConnect } from '../lib/auth';
+
 export default function App() {
+  const { handleOpenAuth } = useConnect();
+
   return (
     <>
       <Box
@@ -96,15 +101,7 @@ export default function App() {
               fugiat aliqua.
             </Text>
             <Stack direction={{ base: 'column', sm: 'row' }} spacing="4" mt="8">
-              <Button
-                size="lg"
-                colorScheme="blue"
-                height="14"
-                px="8"
-                fontSize="md"
-              >
-                Get Started Now
-              </Button>
+              <Auth />
               <Button
                 size="lg"
                 bg="white"
@@ -141,7 +138,6 @@ export default function App() {
         </Box>
       </Box>
       <FeatureList />
-      <SignUp />
       <Box
         as="section"
         maxW="7xl"
