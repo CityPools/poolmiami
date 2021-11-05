@@ -36,10 +36,11 @@
     { id: uint }
     { 
       stacker: principal,
-      amountStacked: uint,
+      amountStacked: uint, 
+      stackingFrom: uint, 
+      stackingTo: uint,
       hasClaimed: bool,
-      isWinner: bool,
-      endCycle: uint
+      cycleWon: (optional uint)
     }
 )
 ;; stores the last 305 stackers tickets
@@ -103,9 +104,10 @@
       { 
         stacker: tx-sender,
         amountStacked: amount,
+        stackingFrom: currentCycle,
+        stackingTo: (+ currentCycle defaultCycle),
         hasClaimed: false,
-        isWinner: false,
-        endCycle: u12
+        cycleWon: none
       }
     )
 
