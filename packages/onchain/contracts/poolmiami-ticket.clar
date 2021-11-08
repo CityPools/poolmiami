@@ -145,7 +145,7 @@
 ;; PRIVATE FUNCTIONS
 
 ;; Manage the Mint
-(define-private (called-from-minter)
+(define-private (is-authorized-caller)
   (let 
     (
       (the-mint (unwrap! (get contract-id (map-get? mint-address true)) false))
@@ -160,7 +160,7 @@
     (
       (the-mint (map-get? mint-address true))
     )
-    (asserts! (and (is-none the-mint) (map-insert mint-address true {contract-id: tx-sender})) err-mint-address-already-set)
+    (asserts! (and (is-none the-mint) (map-insert mint-address true {contract-id: (as-contract tx-sender)})) err-mint-address-already-set)
     (ok tx-sender)
   )
 )
