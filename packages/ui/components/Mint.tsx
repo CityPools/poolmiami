@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Button } from '@chakra-ui/react';
 import { useConnect } from '@stacks/connect-react';
+import { Button } from '@chakra-ui/react';
 import {
   createAssetInfo,
   FungibleConditionCode,
+  NonFungibleConditionCode,
+  makeStandardFungiblePostCondition,
   makeContractFungiblePostCondition,
-  makeContractSTXPostCondition,
+  makeStandardNonFungiblePostCondition,
+  makeContractNonFungiblePostCondition,
   PostConditionMode,
   uintCV,
+  stringAsciiCV,
+  contractPrincipalCV,
 } from '@stacks/transactions';
+import { FinishedTxData, openContractCall } from "@stacks/connect";
+import { StacksTestnet } from '@stacks/network';
 import {
   CITYPOOLS_CORE,
   CONTRACT_DEPLOYER,
@@ -22,38 +29,66 @@ export default function Mint() {
   const [loading, setLoading] = useState(false);
   const [txId, setTxId] = useState();
 
+
   const claimNFT = async () => {
-    const targetRewardCycleCV = uintCV(6);
-    const amountUstxCV = uintCV(1000000);
-    const amountCityCoinCV = uintCV(305000);
+    // With a standard principal
+    const contractPrincipal = contractPrincipalCV(CONTRACT_DEPLOYER, CITYPOOLS_CORE)
+    const amountToStack = uintCV(50);
+    const postConditionAddress = 'ST143YHR805B8S834BWJTMZVFR1WP5FFC00V8QTV4';
+    const postConditionCode = FungibleConditionCode.Equal;
+    const mintPostConditionAmount = new BigNum(10);
+    const stackingPostConditionAmount = new BigNum(amountToStack.value);
+    const network = new StacksTestnet();
+    const assetAddress = CONTRACT_DEPLOYER;
+    const assetContractName = CITYPOOLS_CORE;
+    const fungibleAssetInfo = createAssetInfo(assetAddress, assetContractName, "CityCoin");
+
+    const mintPostCondition = makeStandardFungiblePostCondition(
+      postConditionAddress,
+      postConditionCode,
+      mintPostConditionAmount,
+      fungibleAssetInfo
+    );
+
+    const stackingPostCondition = makeContractFungiblePostCondition(
+      postConditionAddress,
+      assetContractName,
+      postConditionCode,
+      stackingPostConditionAmount,
+      fungibleAssetInfo
+    );
+
+    // Non-fungible Post Condition
+    
+    const nftPostConditionAddress = CONTRACT_DEPLOYER;
+    const nftPostConditionCode = NonFungibleConditionCode.DoesNotOwn;
+    const nftAssetAddress = CONTRACT_DEPLOYER;
+    const nftAssetContractName = 'rigid-gray-dinosaur';
+    const assetName = 'PoolMiami-Ticket';
+    const tokenAssetName = stringAsciiCV('PoolMiami Ticket');
+    const nonFungibleAssetInfo = createAssetInfo(assetAddress, assetContractName, assetName);
+
+    const standardNonFungiblePostCondition = makeContractNonFungiblePostCondition(
+      nftAssetAddress,
+      nftAssetContractName,
+      nftPostConditionCode,
+      nonFungibleAssetInfo,
+      tokenAssetName
+    );
+
     setLoading(true);
-    let postConditions = [];
-    amountUstxCV.value > 0 &&
-      postConditions.push(
-        makeContractSTXPostCondition(
-          CONTRACT_DEPLOYER,
-          CITYPOOLS_CORE,
-          FungibleConditionCode.Equal,
-          amountUstxCV.value
-        )
-      );
-      
-    await doContractCall({
+
+    await openContractCall({
+      onCancel: () => alert("Cancelled!"),
+      onFinish: (tx: FinishedTxData) => console.log("tx sent", tx),
       contractAddress: CONTRACT_DEPLOYER,
-      contractName: CITYCOIN_CORE,
+      contractName: CITYPOOLS_CORE,
       functionName: 'claim',
-      functionArgs: [],
+      functionArgs: [amountToStack],
       postConditionMode: PostConditionMode.Deny,
-      postConditions: postConditions,
-      network: NETWORK,
-      onCancel: () => {
-        setLoading(false);
-      },
-      onFinish: result => {
-        setLoading(false);
-        setTxId(result.txId);
-      },
-    });
+      postConditions: [mintPostCondition, stackingPostCondition, standardNonFungiblePostCondition],
+      
+    })
   };
 
   return (

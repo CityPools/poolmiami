@@ -11,13 +11,13 @@ import {
   HStack,
   Img,
   Stack,
-  StackDivider,
   Text,
   useColorModeValue as mode,
 } from '@chakra-ui/react'
 import { HiArrowRight } from 'react-icons/hi'
 import { useAtom } from 'jotai';
 import { useConnect, userSessionState } from '../lib/auth';
+import Mint from '../components/Mint'
 
 export default function App() {
   const { handleOpenAuth } = useConnect();
@@ -113,6 +113,7 @@ export default function App() {
                   >
                     Log out
                   </Button>
+                  <Mint />
                 </>
                 : 
                 <>

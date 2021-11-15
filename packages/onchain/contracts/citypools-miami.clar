@@ -1,22 +1,16 @@
 ;;      ////    ERRORS    \\\\      ;;
 
-(define-constant ERR-NOT-OWNER u401)
-(define-constant ERR-NOT-AUTHORIZED u401)
-(define-constant ERR-STACKER-NOT-FOUND u404)
-(define-constant ERR-TOKEN-NOT-FOUND u405)
-(define-constant ERR-TICKET-NOT-FOUND u201)
-(define-constant ERR-BLOCK-ALREADY-CHECKED u205)
-(define-constant ERR-WAIT-100-BLOCKS-BEFORE-CHECKING u206)
-(define-constant ERR-ALL-POSSIBLE-BLOCKS-CHECKED u207)
-(define-constant ERR-ALL-WINNERS-PAID u209)
-(define-constant ERR-INVALID-AMOUNT u213)
-(define-constant ERR-ID-NOT-FOUND u214)
-(define-constant ERR-ID-NOT-IN-TICKET u215)
-(define-constant ERR-INSUFFICIENT-BALANCE u216)
+(define-constant err-not-owner u401)
+(define-constant err-not-authorized u401)
+(define-constant err-stacker-not-found u404)
+(define-constant err-ticket-not-found u201)
+(define-constant err-already-redeemed u209)
+(define-constant err-invalid-amount u213)
+(define-constant err-id-not-found u214)
+(define-constant err-insufficient-balance u216)
 
 ;; filter vars
-(define-data-var stackerIdTip uint u0)
-(define-data-var idToRemove uint u0)
+(define-data-var stacker-id-tip uint u0)
 
 ;;      ////    VARIABLES    \\\\     ;;
 
@@ -25,12 +19,10 @@
 (define-data-var mint-price-in-mia uint u305)
 (define-data-var percent-of-mint-to-stack uint u700000)
 (define-data-var percent-of-mint-to-dao uint u300000)
+(define-data-var contract-stacking-stats uint u0)
 
 ;;      ////    CONFIG    \\\\      ;;
-
-(define-constant mintFee u1000000)
-(define-constant minContribution u10000000)
-(define-constant defaultCycle u6)
+(define-constant default-cycle-length u1)
 
 ;;      ////    STORAGE    \\\\     ;;
 
@@ -40,8 +32,7 @@
     { 
       stacker: principal,
       amountStacked: uint, 
-      stackingFrom: uint, 
-      stackingTo: uint,
+      activeStackingCycle: uint,
       hasClaimed: bool,
       cycleWon: (optional uint)
     }
@@ -54,9 +45,10 @@
 
 ;; stores the amount of MIA stacked through CityPools
 (define-map StackingStatsAtCycle
-  uint
+  { cycle: uint }
   {
-    amountStacked: uint
+    poolStackingContribution: uint,
+    contractStackingContribution: uint
   }
 )
 
@@ -78,26 +70,34 @@
   (match 
     (get id (map-get? PrincipalToId { stacker: stacker })) stackerId stackerId
     (let
-      ((newId (+ u1 (var-get stackerIdTip))))
+      ((newId (+ u1 (var-get stacker-id-tip))))
       (map-set StackersTickets { id: newId } { ticketIds: (list) })
       (map-set IdToPrincipal { id: newId } { stacker: stacker })
       (map-set PrincipalToId { stacker: stacker } { id: newId })
-      (var-set stackerIdTip newId)
+      (var-set stacker-id-tip newId)
       newId
     )
   )
 )
 
-(define-public (create-ticket (ticket-id uint) (amount uint))
+(define-private (create-ticket (ticket-id uint) (amount uint))
   (let
     (
       (stackerId (get-or-create-stacker-id tx-sender))
-      (stacker (unwrap! (get-stacker stackerId) (err ERR-STACKER-NOT-FOUND)))
+      (stacker (unwrap! (get-stacker stackerId) (err err-stacker-not-found)))
       (currentCycle (default-to u0 (contract-call? .citycoin-core-v1 get-reward-cycle block-height)))
+      (amountStackedByContract (/ (* (var-get mint-price-in-mia) (var-get percent-of-mint-to-stack)) u1000))
       (currentStackedAmount 
         (default-to u0
-          (get amountStacked 
-            (map-get? StackingStatsAtCycle currentCycle)
+          (get poolStackingContribution 
+            (map-get? StackingStatsAtCycle { cycle: currentCycle })
+          )
+        )
+      )
+      (currentContractStackedAmount 
+        (default-to u0
+          (get contractStackingContribution 
+            (map-get? StackingStatsAtCycle { cycle: currentCycle })
           )
         )
       )
@@ -107,8 +107,7 @@
       { 
         stacker: tx-sender,
         amountStacked: amount,
-        stackingFrom: currentCycle,
-        stackingTo: (+ currentCycle defaultCycle),
+        activeStackingCycle: (+ currentCycle default-cycle-length),
         hasClaimed: false,
         cycleWon: none
       }
@@ -118,8 +117,11 @@
       { ticketIds: (unwrap-panic (as-max-len? (append (default-to (list) (get-ticket-ids stackerId)) ticket-id) u200)) }
     )
 
-    (map-set StackingStatsAtCycle currentCycle
-      { amountStacked: (+ currentStackedAmount amount) }
+    (map-set StackingStatsAtCycle { cycle: currentCycle }
+      { 
+        poolStackingContribution: (+ currentStackedAmount amount), 
+        contractStackingContribution: (+ currentContractStackedAmount amountStackedByContract) 
+      }
     )
     
     (ok true)
@@ -131,7 +133,7 @@
     (
       (stackerId (principal-to-id stacker))
     )
-    (asserts! (is-eq tx-sender stacker) (err ERR-NOT-OWNER))
+    (asserts! (is-eq tx-sender stacker) (err err-not-owner))
     (print stackerId)
     (ok true)
   )
@@ -147,9 +149,10 @@
       (amountAllocatedToDAO (/ (* (var-get mint-price-in-mia) (var-get percent-of-mint-to-dao)) u1000))
     )
     (begin
-      (try! (contract-call? .citycoin-token transfer amountStackedByContract tx-sender (as-contract tx-sender) (some 0x11)))
-      (try! (contract-call? .citycoin-token transfer amountAllocatedToDAO tx-sender .citypools-dao (some 0x11)))
-      (try! (as-contract (contract-call? .citycoin-core-v1 stack-tokens amount defaultCycle)))
+      (try! (contract-call? .citycoin-token transfer amount tx-sender (as-contract tx-sender) (some 0x11))) ;; transfer desired stacked amount to contract for stacking
+      (try! (contract-call? .citycoin-token transfer amountStackedByContract tx-sender (as-contract tx-sender) (some 0x11))) ;; transfer 70% of the mint fee for contract's stacking contribution
+      (try! (contract-call? .citycoin-token transfer amountAllocatedToDAO tx-sender .citypools-dao (some 0x11))) ;; transfer 30% of the mint fee to PoolMiami DAO
+      (try! (as-contract (contract-call? .citycoin-core-v1 stack-tokens amount default-cycle-length)))
       (try! (create-ticket tokenId amount))
       (ok true)
     )
@@ -162,13 +165,9 @@
 
 (define-public (set-contract-owner (new-owner principal))
   (begin
-    (asserts! (is-eq tx-sender (var-get contract-owner)) (err ERR-NOT-OWNER))
+    (asserts! (is-eq tx-sender (var-get contract-owner)) (err err-not-owner))
     (ok (var-set contract-owner new-owner))
   )
-)
-
-(define-public (transfer-stx (address principal) (amount uint))
-  (as-contract (stx-transfer? amount tx-sender (as-contract tx-sender)))
 )
 
 ;;      ****    READ-ONLY    ****     ;;
