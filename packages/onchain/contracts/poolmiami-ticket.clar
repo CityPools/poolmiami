@@ -49,7 +49,6 @@
       (current-balance (get-balance minter))
     )
     (asserts! true err-not-owner)
-    (unwrap! (stx-transfer? (var-get mint-price) tx-sender contract-owner) err-failed-to-transfer)
     (try! (nft-mint? PoolMiami-Ticket next-id minter))
     (var-set last-id next-id)
     (map-set token-count minter (+ current-balance u1))

@@ -26,7 +26,7 @@ export const useConnect = () => {
     redirectTo: '/',
     manifestPath: '/manifest.json',
     appDetails: {
-      name: 'CityCoins',
+      name: 'CityPools',
       icon: 'https://cdn.citycoins.co/logos/citycoin.png',
     },
   };
@@ -39,5 +39,5 @@ export const useConnect = () => {
     userSession?.signUserOut('/');
   }, [userSession]);
 
-  return { handleOpenAuth, handleSignOut, authOptions };
+  return { handleOpenAuth, handleSignOut, authOptions, userSession };
 };

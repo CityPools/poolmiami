@@ -22,6 +22,9 @@
 
 (define-data-var contract-owner principal tx-sender)
 (define-data-var creator-address principal tx-sender)
+(define-data-var mint-price-in-mia uint u305)
+(define-data-var percent-of-mint-to-stack uint u700000)
+(define-data-var percent-of-mint-to-dao uint u300000)
 
 ;;      ////    CONFIG    \\\\      ;;
 
@@ -140,10 +143,16 @@
   (let
     (
       (tokenId (try! (contract-call? .poolmiami-ticket mint-ticket tx-sender amount)))
+      (amountStackedByContract (/ (* (var-get mint-price-in-mia) (var-get percent-of-mint-to-stack)) u1000))
+      (amountAllocatedToDAO (/ (* (var-get mint-price-in-mia) (var-get percent-of-mint-to-dao)) u1000))
     )
-    (try! (create-ticket tokenId amount))
-    (try! (as-contract (contract-call? .citycoin-core-v1 stack-tokens amount defaultCycle)))
-    (ok true)
+    (begin
+      (try! (contract-call? .citycoin-token transfer amountStackedByContract tx-sender (as-contract tx-sender) (some 0x11)))
+      (try! (contract-call? .citycoin-token transfer amountAllocatedToDAO tx-sender .citypools-dao (some 0x11)))
+      (try! (as-contract (contract-call? .citycoin-core-v1 stack-tokens amount defaultCycle)))
+      (try! (create-ticket tokenId amount))
+      (ok true)
+    )
   )
 )
 

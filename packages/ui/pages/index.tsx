@@ -3,11 +3,6 @@ import Head from 'next/head'
 import Image from 'next/image'
 import '../styles/Home.module.css'
 
-import FeatureList from '../components/features/FeatureList'
-import Stat from '../components/stats/Stat'
-import Footer from '../components/Footer'
-import Auth from '../components/Auth'
-
 import {
   Badge,
   Box,
@@ -20,13 +15,17 @@ import {
   Text,
   useColorModeValue as mode,
 } from '@chakra-ui/react'
-
 import { HiArrowRight } from 'react-icons/hi'
-
-import { useConnect } from '../lib/auth';
+import { useAtom } from 'jotai';
+import { useConnect, userSessionState } from '../lib/auth';
 
 export default function App() {
   const { handleOpenAuth } = useConnect();
+  const { handleSignOut } = useConnect();
+  const [userSession] = useAtom(userSessionState);
+
+  console.log('User Session Atom: ', userSession)
+  console.log('Is Logged in? ', userSession?.isUserSignedIn())
 
   return (
     <>
@@ -101,19 +100,34 @@ export default function App() {
               fugiat aliqua.
             </Text>
             <Stack direction={{ base: 'column', sm: 'row' }} spacing="4" mt="8">
-              <Auth />
-              <Button
-                size="lg"
-                bg="white"
-                color="gray.800"
-                _hover={{ bg: 'gray.50' }}
-                height="14"
-                px="8"
-                shadow="base"
-                fontSize="md"
-              >
-                Talk to an expert
-              </Button>
+              {
+                userSession?.isUserSignedIn() ? 
+                <>
+                  <Button
+                    size="lg"
+                    colorScheme="blue"
+                    height="14"
+                    px="8"
+                    fontSize="md"
+                    onClick={handleSignOut}
+                  >
+                    Log out
+                  </Button>
+                </>
+                : 
+                <>
+                  <Button
+                    size="lg"
+                    colorScheme="blue"
+                    height="14"
+                    px="8"
+                    fontSize="md"
+                    onClick={handleOpenAuth}
+                  >
+                    Get Started Now
+                  </Button>
+                </>
+              }
             </Stack>
           </Box>
         </Box>
@@ -137,39 +151,6 @@ export default function App() {
           />
         </Box>
       </Box>
-      <FeatureList />
-      <Box
-        as="section"
-        maxW="7xl"
-        mx="auto"
-        px={{ base: '6', md: '8' }}
-        py={{ base: '12', md: '20' }}
-      >
-        <Box mb="12" textAlign="center">
-          <Heading size="xl" fontWeight="extrabold" lineHeight="normal">
-            Less overhead, more collaboration
-          </Heading>
-          <Text
-            fontSize="lg"
-            mt="4"
-            fontWeight="medium"
-            color={mode('gray.600', 'whiteAlpha.700')}
-          >
-            Amet minim mollit non deserunt ullamco est sit aliqua dolor do amet
-            sint. Velit officia consequat duis enim.
-          </Text>
-        </Box>
-        <Stack
-          spacing="8"
-          direction={{ base: 'column', md: 'row' }}
-          divider={<StackDivider />}
-        >
-          <Stat title="Amet minim mollit non deserunt ullamco." value="85%" />
-          <Stat title="Amet minim mollit non deserunt ullamco." value="3/4" />
-          <Stat title="Amet minim mollit non deserunt ullamco." value="45K" />
-        </Stack>
-      </Box>
-      <Footer />
     </>
   )
 }
